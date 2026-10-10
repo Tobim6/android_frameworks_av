@@ -621,6 +621,12 @@ HidlProviderInfo::HidlDeviceInfo3::HidlDeviceInfo3(
                 __FUNCTION__, strerror(-res), res);
         return;
     }
+    res = fixupRawMinFrameDurations();
+    if (OK != res) {
+        ALOGE("%s: Unable to fix up RAW min frame durations: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        return;
+    }
 
     res = fixupManualFlashStrengthControlTags(mCameraCharacteristics);
     if (OK != res) {

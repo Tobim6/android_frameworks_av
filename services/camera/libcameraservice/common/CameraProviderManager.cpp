@@ -1928,6 +1928,74 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fixupMonochromeTags()
     return res;
 }
 
+status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fixupRawMinFrameDurations() {
+    // Some HALs advertise RAW output streams in
+    // ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS without the matching
+    // ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS entry the spec requires.
+    // StreamConfigurationMap#getOutputMinFrameDuration() then returns 0, and
+    // clients that derive the sensor readout time from it (libgcam) reject the
+    // camera. Copy the YUV_420_888 duration of the same size.
+    auto& c = mCameraCharacteristics;
+    camera_metadata_entry configs = c.find(ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS);
+    camera_metadata_entry durations = c.find(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS);
+    if (configs.count == 0 || durations.count == 0) {
+        return OK;
+    }
+
+    std::vector<int64_t> updated(durations.data.i64, durations.data.i64 + durations.count);
+    size_t added = 0;
+    for (size_t i = 0; i + 3 < configs.count; i += 4) {
+        const int32_t format = configs.data.i32[i];
+        const int32_t width = configs.data.i32[i + 1];
+        const int32_t height = configs.data.i32[i + 2];
+        const int32_t direction = configs.data.i32[i + 3];
+        if (direction != ANDROID_SCALER_AVAILABLE_STREAM_CONFIGURATIONS_OUTPUT) {
+            continue;
+        }
+        // RAW16 (0x20), RAW_OPAQUE (0x24), RAW10 (0x25), RAW12 (0x26)
+        if (format != 0x20 && format != 0x24 && format != 0x25 && format != 0x26) {
+            continue;
+        }
+
+        bool present = false;
+        int64_t yuvDuration = 0;
+        for (size_t j = 0; j + 3 < durations.count; j += 4) {
+            if (durations.data.i64[j + 1] != width || durations.data.i64[j + 2] != height) {
+                continue;
+            }
+            if (durations.data.i64[j] == format) {
+                present = true;
+            } else if (durations.data.i64[j] == 0x23) {  // YCbCr_420_888
+                yuvDuration = durations.data.i64[j + 3];
+            }
+        }
+        if (present) {
+            continue;
+        }
+        if (yuvDuration <= 0) {
+            yuvDuration = 33331760;  // ~30 fps
+        }
+        updated.push_back(format);
+        updated.push_back(width);
+        updated.push_back(height);
+        updated.push_back(yuvDuration);
+        added++;
+    }
+
+    if (added == 0) {
+        return OK;
+    }
+    status_t res = c.update(ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS,
+                            updated.data(), updated.size());
+    if (res != OK) {
+        ALOGE("%s: Failed to update ANDROID_SCALER_AVAILABLE_MIN_FRAME_DURATIONS: %s (%d)",
+              __FUNCTION__, strerror(-res), res);
+        return res;
+    }
+    ALOGI("%s: added %zu missing RAW min frame duration entries", __FUNCTION__, added);
+    return OK;
+}
+
 status_t CameraProviderManager::ProviderInfo::DeviceInfo3::addRotateCropTags() {
     status_t res = OK;
     auto& c = mCameraCharacteristics;
