@@ -168,6 +168,26 @@ status_t fixupAutoframingTags(CameraMetadata& resultMetadata) {
     return res;
 }
 
+status_t fixupRollingShutterSkew(CameraMetadata& resultMetadata) {
+    status_t res = OK;
+    camera_metadata_entry rollingShutterSkewEntry =
+            resultMetadata.find(ANDROID_SENSOR_ROLLING_SHUTTER_SKEW);
+    if (rollingShutterSkewEntry.count == 0) {
+        // Some HALs omit this tag, but strict Camera2 clients (GCam/libgcam)
+        // assume it is always present. Supply a default of 20 ms.
+        const int64_t defaultRollingShutterSkewNs = 20000000;
+        res = resultMetadata.update(ANDROID_SENSOR_ROLLING_SHUTTER_SKEW,
+                                    &defaultRollingShutterSkewNs, 1);
+        if (res != OK) {
+            ALOGE("%s: Failed to update ANDROID_SENSOR_ROLLING_SHUTTER_SKEW: %s (%d)",
+                  __FUNCTION__, strerror(-res), res);
+            return res;
+        }
+    }
+
+    return res;
+}
+
 status_t fixupManualFlashStrengthControlTags(CameraMetadata& resultMetadata) {
     status_t res = OK;
     camera_metadata_entry strengthLevelEntry =
@@ -478,6 +498,14 @@ void sendCaptureResult(
                 strerror(-res), res);
         return;
     }
+
+    res = fixupRollingShutterSkew(captureResult.mMetadata);
+    if (res != OK) {
+        SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+            "Failed to set rolling shutter skew defaults in result metadata: %s (%d)",
+                strerror(-res), res);
+        return;
+    }
     res = fixupDeviceTypeTag(states.deviceInfo, captureResult.mMetadata);
     if (res != OK) {
         SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
@@ -491,6 +519,15 @@ void sendCaptureResult(
         if (res != OK) {
             SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
                 "Failed to set autoframing defaults in physical result metadata: %s (%d)",
+                    strerror(-res), res);
+            return;
+        }
+
+        res = fixupRollingShutterSkew(physicalMetadata.mCameraMetadataInfo.
+                get<CameraMetadataInfo::metadata>());
+        if (res != OK) {
+            SET_ERR(CAMERA_HAL_CALLBACK_ERROR,
+                "Failed to set rolling shutter skew defaults in physical result metadata: %s (%d)",
                     strerror(-res), res);
             return;
         }

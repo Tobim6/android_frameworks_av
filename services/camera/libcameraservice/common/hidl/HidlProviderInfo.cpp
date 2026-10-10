@@ -621,12 +621,6 @@ HidlProviderInfo::HidlDeviceInfo3::HidlDeviceInfo3(
                 __FUNCTION__, strerror(-res), res);
         return;
     }
-    res = fixupRollingShutterSkew();
-    if (OK != res) {
-        ALOGE("%s: Unable to fix up rolling shutter skew tag: %s (%d)",
-                __FUNCTION__, strerror(-res), res);
-        // non-fatal - continue initialization
-    }
 
     res = fixupManualFlashStrengthControlTags(mCameraCharacteristics);
     if (OK != res) {
