@@ -780,6 +780,7 @@ private:
             void queryPhysicalCameraIds();
             SystemCameraKind getSystemCameraKind();
             status_t fixupMonochromeTags();
+            status_t fixupRollingShutterSkew();
             status_t fixupTorchStrengthTags();
             status_t fixupManualFlashStrengthControlTags(CameraMetadata& ch);
             status_t addDynamicDepthTags(bool maxResolution = false);

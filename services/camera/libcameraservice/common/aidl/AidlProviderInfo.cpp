@@ -586,6 +586,12 @@ AidlProviderInfo::AidlDeviceInfo3::AidlDeviceInfo3(
                 __FUNCTION__, strerror(-res), res);
         return;
     }
+    res = fixupRollingShutterSkew();
+    if (OK != res) {
+        ALOGE("%s: Unable to fix up rolling shutter skew tag: %s (%d)",
+                __FUNCTION__, strerror(-res), res);
+        // non-fatal - continue initialization
+    }
     res = fixupManualFlashStrengthControlTags(mCameraCharacteristics);
     if (OK != res) {
         ALOGE("%s: Unable to fix up manual flash strength control tags: %s (%d)",

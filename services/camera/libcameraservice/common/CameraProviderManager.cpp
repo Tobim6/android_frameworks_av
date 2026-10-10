@@ -1847,6 +1847,26 @@ status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fixupManualFlashStren
     return res;
 }
 
+status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fixupRollingShutterSkew() {
+    auto& c = mCameraCharacteristics;
+    camera_metadata_entry entry = c.find(ANDROID_SENSOR_ROLLING_SHUTTER_SKEW);
+    if (entry.count == 0) {
+        // Some vendor HALs omit this optional tag when
+        // READ_SENSOR_SETTINGS isn't advertised (legal per spec), but
+        // some Camera2 clients (e.g. libgcam-based camera apps) assume
+        // it is always present and fail hard otherwise. Supply a
+        // plausible default (20ms) rather than leaving it absent.
+        int64_t skewNs = 20000000;
+        status_t res = c.update(ANDROID_SENSOR_ROLLING_SHUTTER_SKEW, &skewNs, 1);
+        if (res != OK) {
+            ALOGE("%s: Failed to update ROLLING_SHUTTER_SKEW: %s (%d)",
+                    __FUNCTION__, strerror(-res), res);
+            return res;
+        }
+    }
+    return OK;
+}
+
 status_t CameraProviderManager::ProviderInfo::DeviceInfo3::fixupMonochromeTags() {
     status_t res = OK;
     auto& c = mCameraCharacteristics;
