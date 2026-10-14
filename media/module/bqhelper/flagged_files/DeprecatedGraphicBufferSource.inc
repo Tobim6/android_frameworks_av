@@ -869,6 +869,14 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
         mPrevFrameUs = timeUs;
     }
 
+    {   // TLTS
+        static int sTlts = 0;
+        if (sTlts < 12) {
+            sTlts++;
+            ALOGI("TLTS #%d bufferTimeNs=%lld timeUs=%lld codecTimeUs=%lld mFps=%lg mCaptureFps=%lg",
+                  sTlts, (long long)bufferTimeNs, (long long)timeUs, (long long)mPrevFrameUs, mFps, mCaptureFps);
+        }
+    }
     *codecTimeUs = mPrevFrameUs;
     return true;
 }
