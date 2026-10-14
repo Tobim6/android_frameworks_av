@@ -869,14 +869,6 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
         mPrevFrameUs = timeUs;
     }
 
-    {   // TLTS
-        static int sTlts = 0;
-        if (sTlts < 12) {
-            sTlts++;
-            ALOGI("TLTS #%d bufferTimeNs=%lld timeUs=%lld codecTimeUs=%lld mFps=%lg mCaptureFps=%lg",
-                  sTlts, (long long)bufferTimeNs, (long long)timeUs, (long long)mPrevFrameUs, mFps, mCaptureFps);
-        }
-    }
     *codecTimeUs = mPrevFrameUs;
     {   // TLTSFIX
         static const void* sFixOwner = nullptr;
@@ -889,11 +881,9 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
         if (reset) {
             sFixOwner = this;
             sFixOn = false;
-        } else if ((timeUs - sFixInUs) < 1000 && (nowUs - sFixArrUs) > 20000) {
-            if (!sFixOn) {
-                ALOGI("TLTSFIX engaged: in ts step %lld us, arrival step %lld us, out fps %lg",
-                      (long long)(timeUs - sFixInUs), (long long)(nowUs - sFixArrUs), mFps);
-            }
+        } else if ((timeUs - sFixInUs) >= 1000) {
+            sFixOn = false;  // TLTSFIX2: real timestamps, not the broken timelapse stream
+        } else if ((nowUs - sFixArrUs) > 20000) {
             sFixOn = true;
         }
         if (sFixOn) {
@@ -1417,18 +1407,6 @@ status_t GraphicBufferSource::setTimeLapseConfig(double fps, double captureFps) 
 
     if (mExecuting || !(fps > 0) || !(captureFps > 0)) {
         return INVALID_OPERATION;
-    }
-
-    ALOGI("TLFIX setTimeLapseConfig: fps=%lg captureFps=%lg", fps, captureFps);
-    // TLFIX: a ratio below 1/500 is a unit mix-up (ms/mHz) upstream: the saved video would
-    // last milliseconds. Undo a x1000 error on whichever side carries it.
-    if (captureFps / fps < 0.002) {
-        if (fps >= 1000) {
-            fps /= 1000;
-        } else if (captureFps < 1) {
-            captureFps *= 1000;
-        }
-        ALOGI("TLFIX corrected to fps=%lg captureFps=%lg", fps, captureFps);
     }
 
     mFps = fps;
