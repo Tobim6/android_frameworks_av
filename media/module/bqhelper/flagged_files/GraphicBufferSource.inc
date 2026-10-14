@@ -1183,6 +1183,18 @@ status_t GraphicBufferSource::setTimeLapseConfig(double fps, double captureFps) 
         return INVALID_OPERATION;
     }
 
+    ALOGI("TLFIX setTimeLapseConfig: fps=%lg captureFps=%lg", fps, captureFps);
+    // TLFIX: a ratio below 1/500 is a unit mix-up (ms/mHz) upstream: the saved video would
+    // last milliseconds. Undo a x1000 error on whichever side carries it.
+    if (captureFps / fps < 0.002) {
+        if (fps >= 1000) {
+            fps /= 1000;
+        } else if (captureFps < 1) {
+            captureFps *= 1000;
+        }
+        ALOGI("TLFIX corrected to fps=%lg captureFps=%lg", fps, captureFps);
+    }
+
     mFps = fps;
     mCaptureFps = captureFps;
     if (captureFps > fps) {
