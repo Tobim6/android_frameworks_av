@@ -878,6 +878,35 @@ bool GraphicBufferSource::calculateCodecTimestamp_l(
         }
     }
     *codecTimeUs = mPrevFrameUs;
+    {   // TLTSFIX
+        static const void* sFixOwner = nullptr;
+        static int64_t sFixArrUs = 0, sFixInUs = 0, sFixOutUs = 0;
+        static bool sFixOn = false;
+        struct timespec fixNow;
+        clock_gettime(CLOCK_MONOTONIC, &fixNow);
+        int64_t nowUs = (int64_t)fixNow.tv_sec * 1000000LL + fixNow.tv_nsec / 1000;
+        bool reset = (sFixOwner != this) || sFixArrUs == 0 || timeUs <= sFixInUs;
+        if (reset) {
+            sFixOwner = this;
+            sFixOn = false;
+        } else if ((timeUs - sFixInUs) < 1000 && (nowUs - sFixArrUs) > 20000) {
+            if (!sFixOn) {
+                ALOGI("TLTSFIX engaged: in ts step %lld us, arrival step %lld us, out fps %lg",
+                      (long long)(timeUs - sFixInUs), (long long)(nowUs - sFixArrUs), mFps);
+            }
+            sFixOn = true;
+        }
+        if (sFixOn) {
+            double fixFps = mFps > 0 ? mFps : 30.0;
+            sFixOutUs += std::llround(1000000.0 / fixFps);
+            *codecTimeUs = sFixOutUs;
+        } else {
+            sFixOutUs = *codecTimeUs;
+        }
+        sFixArrUs = nowUs;
+        sFixInUs = timeUs;
+    }
+
     return true;
 }
 
